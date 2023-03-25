@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeleteResult, Repository } from 'typeorm';
 
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResponseUserDto } from './dto/response-user.dto';
 
 import { encrypt } from 'src/utilities/security/crypt';
 
@@ -15,34 +16,67 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto): Promise<ResponseUserDto> {
     const encryptedPassword = await encrypt(createUserDto.password);
     const user = { ...createUserDto, password: encryptedPassword };
-    return this.userRepository.save(user);
+
+    try {
+      return this.userRepository.save(user);
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
   }
 
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find();
-  }
-
-  async findOne(id: number): Promise<User> {
-    return this.userRepository.findOne({
-      where: { id },
+  async findAll(): Promise<ResponseUserDto[]> {
+    const users = await this.userRepository.find({
+      select: ['id', 'name', 'email'],
     });
+
+    try {
+      return users;
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+  async findOne(id: number): Promise<ResponseUserDto> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'name', 'email'],
+    });
+
+    try {
+      return user;
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
+  }
+
+  async update(
+    id: number,
+    updateUserDto: UpdateUserDto,
+  ): Promise<ResponseUserDto> {
     const user = await this.userRepository.findOne({
       where: { id },
     });
 
-    if (!user) return null;
+    if (!user)
+      throw new BadRequestException('The requested user does not exist.');
 
     const updatedUser = Object.assign(user, updateUserDto);
-    return this.userRepository.save(updatedUser);
+
+    try {
+      return this.userRepository.save(updatedUser);
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
   }
 
   async remove(id: number): Promise<DeleteResult> {
-    return this.userRepository.delete(id);
+    try {
+      return await this.userRepository.delete(id);
+    } catch (error) {
+      throw new BadRequestException(error);
+    }
   }
 }
